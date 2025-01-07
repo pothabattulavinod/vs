@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Responsive Video Stream</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        #video-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 80%;
+            max-width: 900px;
+            aspect-ratio: 16 / 9;
+            margin: 20px auto;
+            position: relative;
+            background-color: black;
+            border: 3px solid #444;
+            border-radius: 8px;
+        }
+
+        video {
+            width: 100%;
+            height: auto;
+            background-color: #000;
+        }
+
+        #movie-title {
+            position: absolute;
+            top: 15%;
+            right: 2%;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            z-index: 1;
+            pointer-events: none;
+            display: none;
+        }
+
+        #fullscreen-btn, #refresh-btn, #minimize-btn {
+            background-color: #444;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        #fullscreen-btn:hover, #refresh-btn:hover, #minimize-btn:hover {
+            background-color: #666;
+        }
+
+        #button-container {
+            margin-top: 20px;
+        }
+
+        #loading-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 16px;
+            display: none;
+        }
+
+        /* Remove border in fullscreen */
+        #video-container.fullscreen {
+            border: none;
+        }
+
+        #time-display {
+            margin-top: 10px;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Qodegen Media</h1>
+    <div id="video-container">
+        <video id="video" autoplay muted></video>
+        <div id="movie-title">Saripodhaa Sanivaaram</div>
+        <div id="loading-indicator">Loading...</div>
+    </div>
+    <div id="button-container">
+        <button id="fullscreen-btn">Go Fullscreen</button>
+        <button id="minimize-btn" style="display:none;">Minimize</button>
+        <button id="refresh-btn">Refresh</button>
+    </div>
+
+    <!-- Display the current local time -->
+    <div id="time-display"></div>
+
+    <script>
+        const video = document.getElementById('video');
+        const m3u8Url = 'https://r4eeg9mngv6q.acek-cdn.com/hls2/01/03217/a61bpahvygr9_n/index-v1-a1.m3u8?t=6r3AA2iF9fG3wT51reEFc__ToOx5YMELkgQIQ5BCL9Y&s=1736236826&e=129600&f=16085301&srv=0g7xgsanrz08&i=0.4&sp=500&p1=0g7xgsanrz08&p2=0g7xgsanrz08&asn=133287';
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const minimizeBtn = document.getElementById('minimize-btn');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const movieTitle = document.getElementById('movie-title');
+        const videoContainer = document.getElementById('video-container');
+        const timeDisplay = document.getElementById('time-display');
+
+        // Function to update local time instantly
+        function updateLocalTime() {
+            const currentTime = new Date().toLocaleTimeString();
+            timeDisplay.textContent = `Local Time: ${currentTime}`;
+        }
+
+        // Update the local time every second
+        setInterval(updateLocalTime, 1000);
+
+        // Function to clear local storage and update instantly
+        function clearLocalStorageAndUpdate() {
+            localStorage.clear(); // Clears the local storage
+            console.log('LocalStorage cleared at', new Date().toLocaleTimeString());
+        }
+
+        // Call the function to clear local storage as soon as the page loads
+        clearLocalStorageAndUpdate();
+
+        function showLoading() {
+            loadingIndicator.style.display = 'block';
+        }
+
+        function hideLoading() {
+            loadingIndicator.style.display = 'none';
+        }
+
+        function getPredefinedStartTime() {
+            const startTime = new Date();
+            startTime.setHours(12, 0, 0, 0);
+            return startTime;
+        }
+
+        function loadStream(url, startTimeOffset) {
+            showLoading();
+            if (Hls.isSupported()) {
+                const hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                    video.currentTime = startTimeOffset;
+                    video.muted = false;
+                    video.play();
+                    hideLoading();
+                });
+
+                hls.on(Hls.Events.ERROR, function (event, data) {
+                    hideLoading();
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+                video.currentTime = startTimeOffset;
+                video.muted = false;
+                video.play();
+                hideLoading();
+            } else {
+                hideLoading();
+            }
+        }
+
+        function syncWithStartTime() {
+            const startTime = getPredefinedStartTime();
+            const currentTime = new Date();
+            const timeDifference = currentTime - startTime;
+
+            if (timeDifference >= 0) {
+                const startTimeOffset = timeDifference / 1000;
+                loadStream(m3u8Url, startTimeOffset);
+            } else {
+                const waitTime = Math.abs(timeDifference);
+                setTimeout(() => {
+                    const startTimeOffset = 0;
+                    loadStream(m3u8Url, startTimeOffset);
+                }, waitTime);
+            }
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                videoContainer.requestFullscreen().then(() => {
+                    if (screen.orientation && screen.orientation.lock) {
+                        screen.orientation.lock('landscape').catch((err) => {
+                            console.warn("Screen orientation lock failed:", err);
+                        });
+                    }
+                });
+            }
+        }
+
+        function minimizeFullScreen() {
+            if (document.exitFullscreen) {
+                document.exitFullscreen().then(() => {
+                    if (screen.orientation && screen.orientation.unlock) {
+                        screen.orientation.unlock();
+                    }
+                });
+            }
+        }
+
+        function refreshVideo() {
+            video.pause();
+            video.currentTime = 0;
+            syncWithStartTime();
+        }
+
+        function toggleMovieTitleVisibility() {
+            if (document.fullscreenElement) {
+                movieTitle.style.display = 'block';
+                minimizeBtn.style.display = 'inline-block';
+                fullscreenBtn.style.display = 'none';
+                videoContainer.classList.add('fullscreen');
+            } else {
+                movieTitle.style.display = 'none';
+                minimizeBtn.style.display = 'none';
+                fullscreenBtn.style.display = 'inline-block';
+                videoContainer.classList.remove('fullscreen');
+            }
+        }
+
+        window.addEventListener('load', function () {
+            syncWithStartTime();
+        });
+
+        document.addEventListener('fullscreenchange', toggleMovieTitleVisibility);
+
+        fullscreenBtn.addEventListener('click', toggleFullScreen);
+        minimizeBtn.addEventListener('click', minimizeFullScreen);
+        refreshBtn.addEventListener('click', refreshVideo);
+    </script>
+</body>
+</html>
