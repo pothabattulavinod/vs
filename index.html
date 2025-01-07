@@ -97,7 +97,7 @@
         .watermark {
             position: absolute;
             top: 50%;
-            left: 5%;
+            left: 0;
             transform: translateY(-50%); /* Center vertically on the left */
             color: rgba(255, 255, 255, 0.6);
             font-size: 16px; /* Reduced size for smaller watermark */
@@ -143,16 +143,16 @@
         // Define video URLs and their respective start times
         const videos = [
             {
-                url: "https://teluguvideos.in/dlod/531", // Video 1
-                startTime: "11:10:00" // Start time for Video 1
+                url: "https://jiorockers.baby/files/Telugu%20Movies/Telugu%202024%20Movies/Max%20(2024)%20Telugu%20HQ%20PreDVD/Max%20Telugu%20HQ%20PreDVD%20Single%20Part/Max%20(2024)%20Telugu%20HQ%20PreDVD%20Single%20Part.mp4", // Video 1
+                startTime: "11:12:00" // Start time for Video 1
             },
             {
                 url: "https://teluguvideos.in/dlod/532", // Video 2
-                startTime: "11:15:00" // Start time for Video 2
+                startTime: "12:00:00" // Start time for Video 2
             },
             {
                 url: "https://teluguvideos.in/dlod/533", // Video 3
-                startTime: "11:20:00" // Start time for Video 3
+                startTime: "14:15:00" // Start time for Video 3
             }
         ];
 
@@ -244,6 +244,23 @@
             video.currentTime = 0;
             loadVideo();
         }
+
+        // Auto refresh to force play the video based on the predefined time
+        function autoRefresh() {
+            const videoData = videos[currentVideoIndex];
+            const timeDifferenceInSeconds = calculateTimeDifference(videoData.startTime);
+
+            if (timeDifferenceInSeconds > 0 && !video.paused) {
+                // If the video has started playing and the time difference is positive, no refresh needed
+                return;
+            }
+
+            // Refresh the video if it hasn't played yet or is paused
+            refreshVideo();
+        }
+
+        // Call autoRefresh every minute
+        setInterval(autoRefresh, 60000); // 60000ms = 1 minute
 
         // Event listeners
         fullscreenBtn.addEventListener('click', toggleFullScreen);
