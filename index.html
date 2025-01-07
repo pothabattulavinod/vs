@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Video Player</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        #video-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 80%;
+            max-width: 900px;
+            aspect-ratio: 16 / 9;
+            margin: 20px auto;
+            position: relative;
+            background-color: black;
+            border: 3px solid #444;
+            border-radius: 8px;
+        }
+
+        /* When the video is in fullscreen, remove the border */
+        #video-container.fullscreen {
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 9999;
+            border: none; /* No border in fullscreen */
+        }
+
+        video {
+            width: 100%;
+            height: auto;
+            transition: transform 0.3s ease;
+        }
+
+        #loading-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 16px;
+            display: none;
+        }
+
+        #button-container {
+            margin-top: 20px;
+        }
+
+        button {
+            background-color: #444;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background-color: #666;
+        }
+
+        /* Fullscreen styles */
+        #video-container.fullscreen {
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 9999;
+            border: none; /* Remove border in fullscreen */
+        }
+
+        #video-container.fullscreen video {
+            width: 100%;
+            height: 100%;
+        }
+
+        #fullscreen-btn {
+            display: inline-block;
+        }
+
+        /* Watermark styling */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 5%;
+            transform: translateY(-50%); /* Center vertically on the left */
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 16px; /* Reduced size for smaller watermark */
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 10;
+            user-select: none;
+            display: none; /* Hide watermark by default */
+        }
+
+        /* Media Query for Mobile Devices */
+        @media (max-width: 768px) {
+            /* Apply 1.2 zoom effect only on mobile devices when fullscreen */
+            #video-container.fullscreen video {
+                transform: scale(1.2); /* Zoom in on mobile */
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Advanced Video Player</h1>
+    <div id="video-container">
+        <video id="video" autoplay muted>
+            <!-- Video source will be added dynamically -->
+        </video>
+        <div id="loading-indicator">Loading...</div>
+        <div class="watermark" id="watermark">Qodegen Media</div> <!-- Watermark -->
+    </div>
+
+    <div id="button-container">
+        <button id="fullscreen-btn">Go Fullscreen</button>
+        <button id="refresh-btn">Refresh</button>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const videoContainer = document.getElementById('video-container');
+        const watermark = document.getElementById('watermark');
+
+        // Define video URLs and their respective start times
+        const videos = [
+            {
+                url: "https://teluguvideos.in/dlod/531", // Video 1
+                startTime: "11:10:00" // Start time for Video 1
+            },
+            {
+                url: "https://teluguvideos.in/dlod/532", // Video 2
+                startTime: "11:15:00" // Start time for Video 2
+            },
+            {
+                url: "https://teluguvideos.in/dlod/533", // Video 3
+                startTime: "11:20:00" // Start time for Video 3
+            }
+        ];
+
+        let currentVideoIndex = 0;
+
+        // Show loading indicator
+        function showLoading() {
+            loadingIndicator.style.display = 'block';
+        }
+
+        // Hide loading indicator
+        function hideLoading() {
+            loadingIndicator.style.display = 'none';
+        }
+
+        // Convert time string to seconds
+        function timeToSeconds(timeStr) {
+            const [hours, minutes, seconds] = timeStr.split(':').map(Number);
+            return hours * 3600 + minutes * 60 + seconds;
+        }
+
+        // Calculate the time difference in seconds between current time and predefined start time
+        function calculateTimeDifference(startTimeStr) {
+            const startTime = timeToSeconds(startTimeStr);
+            const currentTime = new Date();
+            const currentTimeInSeconds = currentTime.getHours() * 3600 + currentTime.getMinutes() * 60 + currentTime.getSeconds();
+            return currentTimeInSeconds - startTime;
+        }
+
+        // Load video based on current index and start time
+        function loadVideo() {
+            showLoading();
+            const videoData = videos[currentVideoIndex];
+            video.src = videoData.url;
+            video.load();
+
+            video.onloadedmetadata = function() {
+                const timeDifferenceInSeconds = calculateTimeDifference(videoData.startTime);
+
+                console.log("Start Time (in seconds):", timeToSeconds(videoData.startTime));
+                console.log("Current Time (in seconds):", calculateTimeDifference(videoData.startTime));
+                console.log("Time Difference:", timeDifferenceInSeconds);
+
+                // If the current time is ahead of the start time, play the video from the calculated point
+                if (timeDifferenceInSeconds > 0) {
+                    video.currentTime = timeDifferenceInSeconds; // Start the video from the correct point
+                    video.play().catch((error) => console.error('Playback error:', error));
+                } else {
+                    // If the current time is before the start time, start from the beginning
+                    video.currentTime = 0;
+                    video.play().catch((error) => console.error('Playback error:', error));
+                }
+
+                // Unmute the video after playing
+                video.muted = false;
+
+                hideLoading();
+            };
+        }
+
+        // Fullscreen functionality with forced landscape mode
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                videoContainer.requestFullscreen().then(() => {
+                    // Lock screen to landscape orientation
+                    if (screen.orientation && screen.orientation.lock) {
+                        screen.orientation.lock('landscape').catch((err) => {
+                            console.warn("Orientation lock failed:", err);
+                        });
+                    }
+
+                    watermark.style.display = 'block'; // Show watermark in fullscreen mode
+                    fullscreenBtn.style.display = 'none'; // Hide the fullscreen button in fullscreen mode
+                }).catch((err) => {
+                    console.error("Fullscreen request failed:", err);
+                });
+            }
+        }
+
+        // Exit fullscreen handling
+        function onFullscreenExit() {
+            watermark.style.display = 'none'; // Hide watermark when exiting fullscreen mode
+            fullscreenBtn.style.display = 'inline-block'; // Show the fullscreen button again if exiting fullscreen mode
+        }
+
+        // Refresh functionality
+        function refreshVideo() {
+            video.pause();
+            video.currentTime = 0;
+            loadVideo();
+        }
+
+        // Event listeners
+        fullscreenBtn.addEventListener('click', toggleFullScreen);
+        refreshBtn.addEventListener('click', refreshVideo);
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                onFullscreenExit(); // Show the fullscreen button again if exiting fullscreen mode
+                videoContainer.classList.remove('fullscreen'); // Remove fullscreen class
+            } else {
+                videoContainer.classList.add('fullscreen'); // Add fullscreen class
+            }
+        });
+
+        // Initialize video on page load
+        window.addEventListener('load', () => {
+            loadVideo();
+        });
+    </script>
+</body>
+</html>
