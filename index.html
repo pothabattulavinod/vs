@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qodegen TV</title>
+    <title>Qodegen Music</title>
     <style>
         body {
             background-color: #000;
@@ -97,7 +97,7 @@
     <div id="video-container">
         <video id="video" autoplay muted playsinline></video>
         <div id="loading-indicator">Loading...</div>
-        <div id="watermark">QODEGEN TV</div>
+        <div id="watermark">QODEGEN MUSIC</div>
     </div>
     <div id="info-bar">Now Playing: -</div>
     <div id="button-container">
@@ -219,7 +219,7 @@
         function syncWithTime() {
             const now = new Date();
             const targetTime = new Date();
-            targetTime.setHours(12, 15, 0, 0); // Target time set to 11:10 AM
+            targetTime.setHours(12, 20, 0, 0); // Target time set to 11:10 AM
 
             // Get the difference between the current time and target start time
             const diffInSeconds = Math.floor((now - targetTime) / 1000); // Time difference in seconds
