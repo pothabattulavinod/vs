@@ -32,6 +32,7 @@
             width: 100%;
             height: auto;
             background-color: #000;
+            pointer-events: none;
         }
 
         #info-bar {
@@ -92,11 +93,11 @@
     </style>
 </head>
 <body>
-    <h1>Qodegen MUSIC</h1>
+    <h1>Qodegen TV</h1>
     <div id="video-container">
         <video id="video" autoplay muted playsinline></video>
         <div id="loading-indicator">Loading...</div>
-        <div id="watermark">QODEGEN MUSIC</div>
+        <div id="watermark">QODEGEN TV</div>
     </div>
     <div id="info-bar">Now Playing: -</div>
     <div id="button-container">
@@ -117,36 +118,32 @@
             {
                 url: 'https://teluguvideos.in/siteuploads/theme2/files/sfd1/467/Unnattundi%20Gundey%201080p-(Teluguvideos.in).mp4',
                 title: 'Unnattundi Gundey',
-                duration: 5 * 60 + 30,
-                startTime: new Date().setHours(10, 15, 0, 0)
+                duration: 330 // 5 mins 30 sec
             },
             {
                 url: 'https://teluguvideos.in/siteuploads/theme2/files/sfd2/545/Poolamme%20Pilla%20(HanuMan)%201080p-(Teluguvideos.in).mp4',
                 title: 'Poolamme Pilla',
-                duration: 3 * 60 + 43,
-                startTime: new Date().setHours(10, 20, 30, 0)
+                duration: 223 // 3 mins 43 sec
             },
             {
                 url: 'https://teluguvideos.in/siteuploads/theme2/files/sfd1/464/Aradhya%20(Kushi)%201080p-(Teluguvideos.in).mp4',
                 title: 'Aradhya',
-                duration: 4 * 60 + 45,
-                startTime: new Date().setHours(10, 24, 13, 0)
+                duration: 285 // 4 mins 45 sec
             },
             {
                 url: 'https://teluguvideos.in/siteuploads/theme2/files/sfd1/90/Naatu%20Naatu%201080p-(Teluguvideos.in).mp4',
                 title: 'Naatu Naatu',
-                duration: 4 * 60 + 31,
-                startTime: new Date().setHours(10, 28, 58, 0)
+                duration: 271 // 4 mins 31 sec
             },
             {
                 url: 'https://teluguvideos.in/siteuploads/theme2/files/sfd1/491/Ammayi%20(Animal)%201080p-(Teluguvideos.in).mp4',
                 title: 'Ammayi',
-                duration: 4 * 60 + 34,
-                startTime: new Date().setHours(10, 33, 29, 0)
+                duration: 274 // 4 mins 34 sec
             }
         ];
 
         let currentStreamIndex = 0;
+        let totalDuration = streams.reduce((total, stream) => total + stream.duration, 0); // Total duration of all streams
 
         function showLoading() {
             loadingIndicator.style.display = 'block';
@@ -156,51 +153,54 @@
             loadingIndicator.style.display = 'none';
         }
 
-        function loadStream(offsetSeconds = 0) {
+        function loadStream(startFrom) {
+            if (currentStreamIndex >= streams.length) {
+                infoBar.textContent = 'Streaming session ended.';
+                return;
+            }
+
             showLoading();
             const stream = streams[currentStreamIndex];
             video.src = stream.url;
-            video.currentTime = offsetSeconds;
             video.load();
 
             video.onloadeddata = () => {
+                video.currentTime = startFrom || 0; // Start from the calculated time or the beginning
+                video.muted = false; // Ensure video is unmuted
                 video.play();
-                video.muted = false;
                 infoBar.textContent = `Now Playing: ${stream.title}`;
                 hideLoading();
+
+                // Display the next video's title after the current one finishes
+                if (currentStreamIndex + 1 < streams.length) {
+                    infoBar.textContent += ` | Next: ${streams[currentStreamIndex + 1].title}`;
+                }
+            };
+
+            video.onended = () => {
+                currentStreamIndex++;
+                if (currentStreamIndex < streams.length) {
+                    loadStream(0); // Start the next video from the beginning
+                } else {
+                    infoBar.textContent = 'Streaming session ended.';
+                }
             };
         }
 
-        function syncWithTime() {
-            const now = new Date();
-            const stream = streams[currentStreamIndex];
-
-            if (now >= new Date(stream.startTime + stream.duration * 1000)) {
-                playNextStream();
-            } else if (now >= stream.startTime) {
-                const offset = Math.max((now - stream.startTime) / 1000, 0);
-                loadStream(offset);
-            } else {
-                setTimeout(syncWithTime, stream.startTime - now);
-            }
-        }
-
-        function playNextStream() {
-            if (currentStreamIndex < streams.length - 1) {
-                currentStreamIndex++;
-                syncWithTime();
-            } else {
-                infoBar.textContent = 'No more streams available.';
-            }
-        }
-
-        fullscreenBtn.addEventListener('click', () => {
+        function enableFullscreen() {
             videoContainer.requestFullscreen().then(() => {
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(err => {
+                        console.warn("Orientation lock failed:", err);
+                    });
+                }
                 videoContainer.classList.add('fullscreen');
                 watermark.style.display = 'block';
                 fullscreenBtn.style.display = 'none';
             });
-        });
+        }
+
+        fullscreenBtn.addEventListener('click', enableFullscreen);
 
         document.addEventListener('fullscreenchange', () => {
             if (!document.fullscreenElement) {
@@ -210,11 +210,44 @@
             }
         });
 
+        // Refresh functionality to trigger syncing with time
         refreshBtn.addEventListener('click', () => {
-            syncWithTime();
+            syncWithTime(); // Trigger syncWithTime on refresh button click
         });
 
-        window.addEventListener('load', syncWithTime);
+        // Sync video start time with local time (11:10 AM)
+        function syncWithTime() {
+            const now = new Date();
+            const targetTime = new Date();
+            targetTime.setHours(12, 15, 0, 0); // Target time set to 11:10 AM
+
+            // Get the difference between the current time and target start time
+            const diffInSeconds = Math.floor((now - targetTime) / 1000); // Time difference in seconds
+
+            if (diffInSeconds >= 0 && diffInSeconds <= totalDuration) {
+                let currentStartTime = 0;
+                let timeElapsed = 0;
+
+                for (let i = 0; i < streams.length; i++) {
+                    timeElapsed += streams[i].duration;
+                    if (diffInSeconds < timeElapsed) {
+                        currentStreamIndex = i;
+                        currentStartTime = diffInSeconds - (timeElapsed - streams[i].duration);
+                        break;
+                    }
+                }
+
+                loadStream(currentStartTime); // Start the video from the correct point
+            } else if (diffInSeconds > totalDuration) {
+                infoBar.textContent = 'Streaming session ended.';
+            } else {
+                // If current time is before 11:10 AM, wait until 11:10 AM and then start
+                const delay = targetTime - now;
+                setTimeout(syncWithTime, delay);
+            }
+        }
+
+        window.addEventListener('load', syncWithTime); // Trigger synchronization on page load
     </script>
 </body>
 </html>
