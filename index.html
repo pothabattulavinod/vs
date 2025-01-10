@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Video Player</title>
+    <title>Qodegen TV</title>
     <style>
         body {
             background-color: #000;
@@ -28,21 +28,38 @@
             border-radius: 8px;
         }
 
-        /* When the video is in fullscreen, remove the border */
-        #video-container.fullscreen {
-            width: 100%;
-            height: 100%;
-            position: fixed;
-            top: 0;
-            left: 0;
-            z-index: 9999;
-            border: none; /* No border in fullscreen */
-        }
-
         video {
             width: 100%;
             height: auto;
-            transition: transform 0.3s ease;
+            background-color: #000;
+        }
+
+        #info-bar {
+            font-size: 16px;
+            font-weight: bold;
+            background-color: #222;
+            padding: 10px;
+            margin: 20px auto;
+            width: 80%;
+            border-radius: 5px;
+        }
+
+        #fullscreen-btn, #refresh-btn {
+            background-color: #444;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        #fullscreen-btn:hover, #refresh-btn:hover {
+            background-color: #666;
+        }
+
+        #button-container {
+            margin-top: 20px;
         }
 
         #loading-indicator {
@@ -50,83 +67,38 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: white;
+            color: #fff;
             font-size: 16px;
             display: none;
         }
 
-        #button-container {
-            margin-top: 20px;
-        }
-
-        button {
-            background-color: #444;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            margin: 5px;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-
-        button:hover {
-            background-color: #666;
-        }
-
-        /* Fullscreen styles */
         #video-container.fullscreen {
-            width: 100%;
-            height: 100%;
-            position: fixed;
-            top: 0;
-            left: 0;
-            z-index: 9999;
-            border: none; /* Remove border in fullscreen */
-        }
-
-        #video-container.fullscreen video {
-            width: 100%;
-            height: 100%;
-        }
-
-        #fullscreen-btn {
-            display: inline-block;
+            border: none;
         }
 
         /* Watermark styling */
-        .watermark {
+        #watermark {
             position: absolute;
-            top: 50%;
             left: 5%;
-            transform: translateY(-50%); /* Center vertically on the left */
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 16px; /* Reduced size for smaller watermark */
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
             font-weight: bold;
-            pointer-events: none;
+            color: rgba(255, 255, 255, 0.5);
+            padding: 10px;
+            display: none;
             z-index: 10;
-            user-select: none;
-            display: none; /* Hide watermark by default */
-        }
-
-        /* Media Query for Mobile Devices */
-        @media (max-width: 768px) {
-            /* Apply 1.2 zoom effect only on mobile devices when fullscreen */
-            #video-container.fullscreen video {
-                transform: scale(); /* Zoom in on mobile */
-            }
         }
     </style>
 </head>
 <body>
-    <h1>Advanced Video Player</h1>
+    <h1>Qodegen MUSIC</h1>
     <div id="video-container">
-        <video id="video" autoplay muted>
-            <!-- Video source will be added dynamically -->
-        </video>
+        <video id="video" autoplay muted playsinline></video>
         <div id="loading-indicator">Loading...</div>
-        <div class="watermark" id="watermark">Qodegen TV</div> <!-- Watermark -->
+        <div id="watermark">QODEGEN MUSIC</div>
     </div>
-
+    <div id="info-bar">Now Playing: -</div>
     <div id="button-container">
         <button id="fullscreen-btn">Go Fullscreen</button>
         <button id="refresh-btn">Refresh</button>
@@ -134,150 +106,115 @@
 
     <script>
         const video = document.getElementById('video');
-        const loadingIndicator = document.getElementById('loading-indicator');
         const fullscreenBtn = document.getElementById('fullscreen-btn');
         const refreshBtn = document.getElementById('refresh-btn');
+        const infoBar = document.getElementById('info-bar');
         const videoContainer = document.getElementById('video-container');
         const watermark = document.getElementById('watermark');
+        const loadingIndicator = document.getElementById('loading-indicator');
 
-        // Define video URLs and their respective start times
-        const videos = [
+        const streams = [
             {
-                url: "https://cdn.boostpng.com/Devara_(2024)_Telugu_500MB.mkv", // Video 1
-                startTime: "11:12:00" // Start time for Video 1
+                url: 'https://teluguvideos.in/siteuploads/theme2/files/sfd1/467/Unnattundi%20Gundey%201080p-(Teluguvideos.in).mp4',
+                title: 'Unnattundi Gundey',
+                duration: 5 * 60 + 30,
+                startTime: new Date().setHours(10, 15, 0, 0)
             },
             {
-                url: "https://cdn.boostpng.com/Dasara_(2023)_Telugu_400MB.mkv", // Video 2
-                startTime: "13:30:00" // Start time for Video 2
+                url: 'https://teluguvideos.in/siteuploads/theme2/files/sfd2/545/Poolamme%20Pilla%20(HanuMan)%201080p-(Teluguvideos.in).mp4',
+                title: 'Poolamme Pilla',
+                duration: 3 * 60 + 43,
+                startTime: new Date().setHours(10, 20, 30, 0)
             },
             {
-                url: "https://cdn.boostpng.com/Saripodhaa_Sanivaaram_(2024)_Tel_700MB.mkv", // Video 3
-                startTime: "16:15:00" // Start time for Video 3
+                url: 'https://teluguvideos.in/siteuploads/theme2/files/sfd1/464/Aradhya%20(Kushi)%201080p-(Teluguvideos.in).mp4',
+                title: 'Aradhya',
+                duration: 4 * 60 + 45,
+                startTime: new Date().setHours(10, 24, 13, 0)
+            },
+            {
+                url: 'https://teluguvideos.in/siteuploads/theme2/files/sfd1/90/Naatu%20Naatu%201080p-(Teluguvideos.in).mp4',
+                title: 'Naatu Naatu',
+                duration: 4 * 60 + 31,
+                startTime: new Date().setHours(10, 28, 58, 0)
+            },
+            {
+                url: 'https://teluguvideos.in/siteuploads/theme2/files/sfd1/491/Ammayi%20(Animal)%201080p-(Teluguvideos.in).mp4',
+                title: 'Ammayi',
+                duration: 4 * 60 + 34,
+                startTime: new Date().setHours(10, 33, 29, 0)
             }
         ];
 
-        let currentVideoIndex = 0;
+        let currentStreamIndex = 0;
 
-        // Show loading indicator
         function showLoading() {
             loadingIndicator.style.display = 'block';
         }
 
-        // Hide loading indicator
         function hideLoading() {
             loadingIndicator.style.display = 'none';
         }
 
-        // Convert time string to seconds
-        function timeToSeconds(timeStr) {
-            const [hours, minutes, seconds] = timeStr.split(':').map(Number);
-            return hours * 3600 + minutes * 60 + seconds;
-        }
-
-        // Calculate the time difference in seconds between current time and predefined start time
-        function calculateTimeDifference(startTimeStr) {
-            const startTime = timeToSeconds(startTimeStr);
-            const currentTime = new Date();
-            const currentTimeInSeconds = currentTime.getHours() * 3600 + currentTime.getMinutes() * 60 + currentTime.getSeconds();
-            return currentTimeInSeconds - startTime;
-        }
-
-        // Load video based on current index and start time
-        function loadVideo() {
+        function loadStream(offsetSeconds = 0) {
             showLoading();
-            const videoData = videos[currentVideoIndex];
-            video.src = videoData.url;
+            const stream = streams[currentStreamIndex];
+            video.src = stream.url;
+            video.currentTime = offsetSeconds;
             video.load();
 
-            video.onloadedmetadata = function() {
-                const timeDifferenceInSeconds = calculateTimeDifference(videoData.startTime);
-
-                console.log("Start Time (in seconds):", timeToSeconds(videoData.startTime));
-                console.log("Current Time (in seconds):", calculateTimeDifference(videoData.startTime));
-                console.log("Time Difference:", timeDifferenceInSeconds);
-
-                // If the current time is ahead of the start time, play the video from the calculated point
-                if (timeDifferenceInSeconds > 0) {
-                    video.currentTime = timeDifferenceInSeconds; // Start the video from the correct point
-                    video.play().catch((error) => console.error('Playback error:', error));
-                } else {
-                    // If the current time is before the start time, start from the beginning
-                    video.currentTime = 0;
-                    video.play().catch((error) => console.error('Playback error:', error));
-                }
-
-                // Unmute the video after playing
+            video.onloadeddata = () => {
+                video.play();
                 video.muted = false;
-
+                infoBar.textContent = `Now Playing: ${stream.title}`;
                 hideLoading();
             };
         }
 
-        // Fullscreen functionality with forced landscape mode
-        function toggleFullScreen() {
-            if (!document.fullscreenElement) {
-                videoContainer.requestFullscreen().then(() => {
-                    // Lock screen to landscape orientation
-                    if (screen.orientation && screen.orientation.lock) {
-                        screen.orientation.lock('landscape').catch((err) => {
-                            console.warn("Orientation lock failed:", err);
-                        });
-                    }
+        function syncWithTime() {
+            const now = new Date();
+            const stream = streams[currentStreamIndex];
 
-                    watermark.style.display = 'block'; // Show watermark in fullscreen mode
-                    fullscreenBtn.style.display = 'none'; // Hide the fullscreen button in fullscreen mode
-                }).catch((err) => {
-                    console.error("Fullscreen request failed:", err);
-                });
+            if (now >= new Date(stream.startTime + stream.duration * 1000)) {
+                playNextStream();
+            } else if (now >= stream.startTime) {
+                const offset = Math.max((now - stream.startTime) / 1000, 0);
+                loadStream(offset);
+            } else {
+                setTimeout(syncWithTime, stream.startTime - now);
             }
         }
 
-        // Exit fullscreen handling
-        function onFullscreenExit() {
-            watermark.style.display = 'none'; // Hide watermark when exiting fullscreen mode
-            fullscreenBtn.style.display = 'inline-block'; // Show the fullscreen button again if exiting fullscreen mode
-        }
-
-        // Refresh functionality
-        function refreshVideo() {
-            video.pause();
-            video.currentTime = 0;
-            loadVideo();
-        }
-
-        // Auto refresh to force play the video based on the predefined time
-        function autoRefresh() {
-            const videoData = videos[currentVideoIndex];
-            const timeDifferenceInSeconds = calculateTimeDifference(videoData.startTime);
-
-            if (timeDifferenceInSeconds > 0 && !video.paused) {
-                // If the video has started playing and the time difference is positive, no refresh needed
-                return;
+        function playNextStream() {
+            if (currentStreamIndex < streams.length - 1) {
+                currentStreamIndex++;
+                syncWithTime();
+            } else {
+                infoBar.textContent = 'No more streams available.';
             }
-
-            // Refresh the video if it hasn't played yet or is paused
-            refreshVideo();
         }
 
-        // Call autoRefresh every minute
-        setInterval(autoRefresh, 60000); // 60000ms = 1 minute
+        fullscreenBtn.addEventListener('click', () => {
+            videoContainer.requestFullscreen().then(() => {
+                videoContainer.classList.add('fullscreen');
+                watermark.style.display = 'block';
+                fullscreenBtn.style.display = 'none';
+            });
+        });
 
-        // Event listeners
-        fullscreenBtn.addEventListener('click', toggleFullScreen);
-        refreshBtn.addEventListener('click', refreshVideo);
         document.addEventListener('fullscreenchange', () => {
             if (!document.fullscreenElement) {
-                onFullscreenExit(); // Show the fullscreen button again if exiting fullscreen mode
-                videoContainer.classList.remove('fullscreen'); // Remove fullscreen class
-            } else {
-                videoContainer.classList.add('fullscreen'); // Add fullscreen class
+                videoContainer.classList.remove('fullscreen');
+                watermark.style.display = 'none';
+                fullscreenBtn.style.display = 'inline-block';
             }
         });
 
-        // Initialize video on page load
-        window.addEventListener('load', () => {
-            loadVideo();
+        refreshBtn.addEventListener('click', () => {
+            syncWithTime();
         });
+
+        window.addEventListener('load', syncWithTime);
     </script>
 </body>
 </html>
