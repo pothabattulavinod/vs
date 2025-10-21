@@ -1,0 +1,67 @@
+name: MKV to HLS (No Encoding)
+
+on:
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # 2. Install ffmpeg
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      # 3. Convert MKV to HLS (copy video + audio)
+      - name: Convert MKV to HLS (No Encode)
+        run: |
+          # Output folder
+          OUTPUT_FOLDER="kubera"
+          mkdir -p "$OUTPUT_FOLDER"
+
+          # Input MKV URL
+          INPUT_URL="https://cdn.telugudub.store/Kuberaa_(2025)_Telugu_Proper_HD_720p.mkv"
+
+          # Output playlist path
+          OUTPUT_PATH="$OUTPUT_FOLDER/playlist.m3u8"
+
+          # FFmpeg command: copy streams (no encoding)
+          ffmpeg -i "$INPUT_URL" \
+                 -map 0:v -map 0:a \
+                 -c:v copy -c:a copy \
+                 -f hls \
+                 -hls_time 10 \
+                 -hls_playlist_type vod \
+                 -hls_segment_filename "$OUTPUT_FOLDER/segment%03d.ts" \
+                 "$OUTPUT_PATH"
+
+          echo "✅ HLS (video + audio, no encoding) ready: $OUTPUT_PATH"
+
+      # 4. Commit and push the HLS folder
+      - name: Commit and push results
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          git config --global user.name "pothabattulavinod"
+          git config --global user.email "vinodyadavpothabattula666@gmail.com"
+
+          git add kubera
+
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "Add HLS copy output [skip ci]"
+          else
+            echo "No changes to commit"
+          fi
+
+          git remote remove origin
+          git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
+          git push origin HEAD:main
