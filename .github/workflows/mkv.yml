@@ -1,4 +1,4 @@
-name: MKV to Split (720p video + Telugu Audio, batch push)
+name: MKV to single (720p video + Telugu Audio, single push)
 
 on:
   workflow_dispatch:
@@ -61,35 +61,22 @@ jobs:
 
           echo "✅ HLS ready → $OUTPUT_PATH"
 
-      # 4️⃣ Batch commit & push
-      - name: Commit & push HLS in batches
+      # 4️⃣ Commit & push all files in a single commit
+      - name: Commit & push HLS
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git config --global user.name "pothabattulavinod"
           git config --global user.email "vinodyadavpothabattula666@gmail.com"
 
-          BATCH_SIZE=50
-          FILES=($(ls pj | sort))
-          TOTAL=${#FILES[@]}
-          echo "Total files to push: $TOTAL"
+          # Sync with remote to avoid rejected push
+          git fetch origin main
+          git reset --hard origin/main
 
-          START=0
-          while [ $START -lt $TOTAL ]; do
-              END=$((START + BATCH_SIZE - 1))
-              if [ $END -ge $TOTAL ]; then
-                  END=$((TOTAL - 1))
-              fi
+          # Add all files
+          git add pj
+          git commit -m "Add HLS (single push) [skip ci]" || echo "No changes to commit"
 
-              # Add batch to git
-              for i in $(seq $START $END); do
-                  git add "pj/${FILES[$i]}"
-              done
-
-              git commit -m "Add HLS segments ${START}-${END} [skip ci]" || echo "No changes to commit"
-              git remote remove origin || true
-              git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
-              git push origin HEAD:main
-
-              START=$((END + 1))
-          done
+          git remote remove origin || true
+          git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
+          git push origin HEAD:main
