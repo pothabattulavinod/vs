@@ -1,4 +1,4 @@
-name: MKV to 700mb HLS (Video from 720p + Telugu Audio from 700MB)
+name: MKV to Split (720p video + Telugu Audio, batch push)
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repository
+      # 1️⃣ Checkout
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
@@ -21,65 +21,75 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg jq
 
-      # 3️⃣ Extract Telugu audio from 700MB file and re-encode to AAC 5.1
-      - name: Extract and convert Telugu audio
+      # 3️⃣ Convert MKV to HLS (all segments)
+      - name: Convert MKV to HLS
         run: |
           set -e
 
           VIDEO_SRC="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_720p.mkv"
           AUDIO_SRC="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_700MB.mkv"
           OUTPUT_FOLDER="pj"
+          OUTPUT_PATH="$OUTPUT_FOLDER/playlist.m3u8"
           mkdir -p "$OUTPUT_FOLDER"
 
-          echo "🔍 Checking audio streams from 700MB source..."
-          ffprobe -v error -select_streams a \
-            -show_entries stream=index:stream_tags=language:stream=codec_name,channels \
-            -of json "$AUDIO_SRC" | jq '.streams'
+          # Detect Telugu audio
+          AUDIO_INFO=$(ffprobe -v error -select_streams a \
+                       -show_entries stream=index:stream_tags=language:stream=codec_name,channels \
+                       -of json "$AUDIO_SRC" | jq '.streams')
+          TELUGU_STREAM=$(echo "$AUDIO_INFO" | jq 'map(select(.tags.language=="tel"))')
+          if [ "$TELUGU_STREAM" == "[]" ] || [ -z "$TELUGU_STREAM" ]; then
+              AUDIO_INDEX=$(echo "$AUDIO_INFO" | jq '.[0].index')
+          else
+              AUDIO_INDEX=$(echo "$TELUGU_STREAM" | jq '.[0].index')
+          fi
+          AUDIO_INDEX=$(echo "$AUDIO_INDEX" | tr -d '"')
+          AUDIO_INDEX=${AUDIO_INDEX:-0}
 
-          echo "🎧 Extracting Telugu audio..."
-          # Map 0:1 (known Telugu stream) and re-encode to AAC 5.1
-          ffmpeg -y -i "$AUDIO_SRC" -map 0:a:1 -c:a aac -b:a 384k -ac 6 "$OUTPUT_FOLDER/audio.aac"
-
-          echo "✅ Telugu audio converted to AAC 5.1 → $OUTPUT_FOLDER/audio.aac"
-
-      # 4️⃣ Merge 720p video + Telugu AAC 5.1 audio → HLS
-      - name: Combine and create HLS
-        run: |
-          set -e
-          VIDEO_SRC="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_720p.mkv"
-          OUTPUT_FOLDER="pj"
-          OUTPUT_PATH="$OUTPUT_FOLDER/playlist.m3u8"
-
-          echo "🎬 Combining 720p video with Telugu AAC 5.1 audio..."
+          echo "🎬 Starting HLS conversion..."
           ffmpeg -y \
-            -i "$VIDEO_SRC" \
-            -i "$OUTPUT_FOLDER/audio.aac" \
-            -map 0:v:0 -map 1:a:0 \
-            -c:v copy -c:a copy \
-            -f hls \
-            -hls_time 10 \
-            -hls_playlist_type vod \
-            -hls_segment_filename "$OUTPUT_FOLDER/segment%03d.ts" \
-            "$OUTPUT_PATH"
+                 -i "$VIDEO_SRC" \
+                 -i "$AUDIO_SRC" \
+                 -map 0:v:0 \
+                 -map 1:a:$AUDIO_INDEX? \
+                 -c:v copy \
+                 -c:a aac -b:a 384k -ac 6 \
+                 -f hls \
+                 -hls_time 10 \
+                 -hls_playlist_type vod \
+                 -hls_segment_filename "$OUTPUT_FOLDER/segment%03d.ts" \
+                 "$OUTPUT_PATH"
 
-          echo "✅ HLS output ready → $OUTPUT_PATH"
+          echo "✅ HLS ready → $OUTPUT_PATH"
 
-      # 5️⃣ Commit and push to repo
-      - name: Commit and push HLS output
+      # 4️⃣ Batch commit & push
+      - name: Commit & push HLS in batches
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git config --global user.name "pothabattulavinod"
           git config --global user.email "vinodyadavpothabattula666@gmail.com"
 
-          git add pj
+          BATCH_SIZE=50
+          FILES=($(ls pj | sort))
+          TOTAL=${#FILES[@]}
+          echo "Total files to push: $TOTAL"
 
-          if ! git diff-index --quiet HEAD; then
-            git commit -m "Add HLS (720p video + Telugu AAC 5.1 audio) [skip ci]"
-          else
-            echo "No new files to commit"
-          fi
+          START=0
+          while [ $START -lt $TOTAL ]; do
+              END=$((START + BATCH_SIZE - 1))
+              if [ $END -ge $TOTAL ]; then
+                  END=$((TOTAL - 1))
+              fi
 
-          git remote remove origin || true
-          git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
-          git push origin HEAD:main
+              # Add batch to git
+              for i in $(seq $START $END); do
+                  git add "pj/${FILES[$i]}"
+              done
+
+              git commit -m "Add HLS segments ${START}-${END} [skip ci]" || echo "No changes to commit"
+              git remote remove origin || true
+              git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
+              git push origin HEAD:main
+
+              START=$((END + 1))
+          done
