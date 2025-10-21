@@ -1,7 +1,7 @@
-name: MKV to HLS (Video + Telugu Audio, Full Quality)
+name: MKV to HLS (No Encoding)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # Manual trigger
 
 jobs:
   convert:
@@ -15,68 +15,53 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      # 2. Install dependencies
-      - name: Install ffmpeg and wget
+      # 2. Install ffmpeg
+      - name: Install ffmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg wget
+          sudo apt-get install -y ffmpeg
 
-      # 3. Restore cached Telugu audio only
-      - name: Restore Telugu audio from cache
-        id: cache-audio
-        uses: actions/cache@v3
-        with:
-          path: telugu_audio.aac
-          key: telugu-audio-v2
-
-      # 4. Extract Telugu audio if not cached
-      - name: Extract Telugu audio if missing
-        if: steps.cache-audio.outputs.cache-hit != 'true'
+      # 3. Convert MKV to HLS (copy video + audio)
+      - name: Convert MKV to HLS (No Encode)
         run: |
-          AUDIO_SOURCE_URL="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_700MB.mkv"
-          wget -O full_audio.mkv "$AUDIO_SOURCE_URL"
-          ffmpeg -i full_audio.mkv -map 0:a:m:language:tel -c:a aac telugu_audio.aac
-          rm full_audio.mkv
-          echo "✅ Telugu audio extracted and ready for cache"
-
-      # 5. Download 720p video
-      - name: Download 720p video
-        run: |
-          VIDEO_URL="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_720p.mkv"
-          wget -O video.mkv "$VIDEO_URL"
-
-      # 6. Convert to HLS
-      - name: Convert video + Telugu audio to HLS
-        run: |
+          # Output folder
           OUTPUT_FOLDER="pj"
           mkdir -p "$OUTPUT_FOLDER"
+
+          # Input MKV URL
+          INPUT_URL="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_700MB.mkv"
+
+          # Output playlist path
           OUTPUT_PATH="$OUTPUT_FOLDER/playlist.m3u8"
 
-          ffmpeg -i video.mkv -i telugu_audio.aac \
-                 -map 0:v \
-                 -map 1:a \
-                 -c:v copy \
-                 -c:a copy \
+          # FFmpeg command: copy streams (no encoding)
+          ffmpeg -i "$INPUT_URL" \
+                 -map 0:v -map 0:a \
+                 -c:v copy -c:a copy \
                  -f hls \
                  -hls_time 10 \
                  -hls_playlist_type vod \
                  -hls_segment_filename "$OUTPUT_FOLDER/segment%03d.ts" \
                  "$OUTPUT_PATH"
 
-          echo "✅ Full-quality HLS ready at $OUTPUT_PATH"
+          echo "✅ HLS (video + audio, no encoding) ready: $OUTPUT_PATH"
 
-      # 7. Commit and push HLS output
-      - name: Commit and push HLS
+      # 4. Commit and push the HLS folder
+      - name: Commit and push results
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git config --global user.name "pothabattulavinod"
           git config --global user.email "vinodyadavpothabattula666@gmail.com"
+
           git add pj
+
           if ! git diff-index --quiet HEAD; then
-            git commit -m "Add full-quality HLS with video + Telugu audio [skip ci]"
-            git remote remove origin || true
-            git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
-            git push origin HEAD:main
+            git commit -m "Add HLS copy output [skip ci]"
           else
             echo "No changes to commit"
+          fi
+
+          git remote remove origin
+          git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
+          git push origin HEAD:main
