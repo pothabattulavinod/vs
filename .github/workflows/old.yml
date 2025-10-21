@@ -1,0 +1,101 @@
+name: MKV to old HLS (Video + Telugu Audio, Smart)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # 2. Install ffmpeg and jq
+      - name: Install ffmpeg and jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg jq
+
+      # 3. Select Telugu audio and convert to HLS
+      - name: Convert MKV to HLS (Video + Telugu Audio)
+        run: |
+          set -e
+
+          INPUT_URL="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_720p.mkv"
+          OUTPUT_FOLDER="pj"
+          mkdir -p "$OUTPUT_FOLDER"
+          OUTPUT_PATH="$OUTPUT_FOLDER/playlist.m3u8"
+
+          echo "🔍 Probing audio streams..."
+          AUDIO_INFO=$(ffprobe -v error -select_streams a \
+                      -show_entries stream=index:stream_tags=language:stream=codec_name,channels \
+                      -of json "$INPUT_URL" | jq '.streams')
+
+          # Try to find Telugu audio
+          TELUGU_STREAM=$(echo "$AUDIO_INFO" | jq 'map(select(.tags.language=="tel"))')
+
+          if [ "$TELUGU_STREAM" == "[]" ] || [ -z "$TELUGU_STREAM" ]; then
+              echo "⚠️ No Telugu audio found — defaulting to first audio stream"
+              AUDIO_INDEX=0
+              AUDIO_CODEC=$(echo "$AUDIO_INFO" | jq -r '.[0].codec_name')
+              AUDIO_CHANNELS=$(echo "$AUDIO_INFO" | jq -r '.[0].channels')
+          else
+              AUDIO_INDEX=$(echo "$TELUGU_STREAM" | jq 'map(select(.channels==6)) | if length > 0 then .[0].index else .[0].index end')
+              AUDIO_CODEC=$(echo "$TELUGU_STREAM" | jq -r '.[0].codec_name')
+              AUDIO_CHANNELS=$(echo "$TELUGU_STREAM" | jq -r '.[0].channels')
+              echo "✅ Selected Telugu audio stream: $AUDIO_INDEX ($AUDIO_CODEC, $AUDIO_CHANNELS channels)"
+          fi
+
+          # Sanitize AUDIO_INDEX
+          AUDIO_INDEX=$(echo "$AUDIO_INDEX" | tr -d '"')
+          if [ -z "$AUDIO_INDEX" ] || [ "$AUDIO_INDEX" = "null" ]; then
+            AUDIO_INDEX=0
+          fi
+
+          # Decide whether to copy or re-encode
+          AUDIO_PARAMS="-c:a aac -b:a 384k -ac 6"
+          if [ "$AUDIO_CODEC" == "aac" ] && [ "$AUDIO_CHANNELS" -eq 6 ]; then
+              AUDIO_PARAMS="-c:a copy"
+              echo "✅ Audio is already AAC 5.1, copying without re-encode"
+          else
+              echo "⚠️ Re-encoding audio to AAC 5.1"
+          fi
+
+          echo "🎬 Starting HLS conversion..."
+          ffmpeg -i "$INPUT_URL" \
+                 -map 0:v \
+                 -map 0:a:$AUDIO_INDEX? \
+                 -c:v copy \
+                 $AUDIO_PARAMS \
+                 -f hls \
+                 -hls_time 10 \
+                 -hls_playlist_type vod \
+                 -hls_segment_filename "$OUTPUT_FOLDER/segment%03d.ts" \
+                 "$OUTPUT_PATH"
+
+          echo "✅ HLS ready at $OUTPUT_PATH"
+
+      # 4. Commit and push HLS output
+      - name: Commit and push HLS output
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          git config --global user.name "pothabattulavinod"
+          git config --global user.email "vinodyadavpothabattula666@gmail.com"
+
+          git add pj
+
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "Add HLS with video + Telugu audio [skip ci]"
+          else
+            echo "No changes to commit"
+          fi
+
+          git remote remove origin || true
+          git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
+          git push origin HEAD:main
