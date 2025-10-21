@@ -1,0 +1,100 @@
+name: MKV to 5.1 HLS (Video + Telugu Audio, Smart)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2. Install ffmpeg and jq
+      - name: Install ffmpeg and jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg jq
+
+      # 3. Select Telugu audio and convert
+      - name: Convert MKV to HLS (Video + Telugu Audio)
+        run: |
+          set -e
+
+          INPUT_URL="https://cdn.telugudub.store/Premalu_(2024)_Telugu_720p.mkv"
+          OUTPUT_FOLDER="premalua"
+          mkdir -p "$OUTPUT_FOLDER"
+          OUTPUT_PATH="$OUTPUT_FOLDER/playlist.m3u8"
+
+          # Probe audio streams: find Telugu streams
+          AUDIO_INFO=$(ffprobe -v error -select_streams a \
+                      -show_entries stream=index:stream_tags=language:stream=codec_name,channels \
+                      -of json "$INPUT_URL" | \
+                      jq '.streams | map(select(.tags.language=="tel"))')
+
+          if [ "$AUDIO_INFO" == "[]" ]; then
+              echo "⚠️ No Telugu audio found, defaulting to first audio stream"
+              AUDIO_INDEX=0
+              AUDIO_CODEC=""
+              AUDIO_CHANNELS=""
+          else
+              # Pick 5.1 if available, otherwise the best available
+              AUDIO_INDEX=$(echo "$AUDIO_INFO" | jq 'map(select(.channels==6)) | last // .[0] | .index')
+              AUDIO_CODEC=$(echo "$AUDIO_INFO" | jq -r ".[] | select(.index==$AUDIO_INDEX) | .codec_name")
+              AUDIO_CHANNELS=$(echo "$AUDIO_INFO" | jq -r ".[] | select(.index==$AUDIO_INDEX) | .channels")
+              echo "✅ Selected Telugu audio stream: $AUDIO_INDEX ($AUDIO_CODEC, $AUDIO_CHANNELS channels)"
+          fi
+
+          # Decide whether to copy audio or re-encode
+          AUDIO_PARAMS="-c:a aac -b:a 384k -ac 6"  # default re-encode
+          if [ "$AUDIO_CODEC" == "aac" ] && [ "$AUDIO_CHANNELS" -eq 6 ]; then
+              AUDIO_PARAMS="-c:a copy"
+              echo "✅ Audio is already AAC 5.1, copying without re-encode"
+          else
+              echo "⚠️ Re-encoding audio to AAC 5.1"
+          fi
+
+          # Convert to HLS
+          ffmpeg -i "$INPUT_URL" \
+                 -map 0:v \
+                 -map 0:a:$AUDIO_INDEX \
+                 -c:v copy \
+                 $AUDIO_PARAMS \
+                 -f hls \
+                 -hls_time 10 \
+                 -hls_playlist_type vod \
+                 -hls_segment_filename "$OUTPUT_FOLDER/segment%03d.ts" \
+                 "$OUTPUT_PATH"
+
+          echo "✅ HLS ready at $OUTPUT_PATH"
+
+      # 4. Commit and push results
+      - name: Commit and push HLS output
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          git config --global user.name "pothabattulavinod"
+          git config --global user.email "vinodyadavpothabattula666@gmail.com"
+
+          git add premalua
+
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "Add HLS with video + Telugu audio [skip ci]"
+          else
+            echo "No changes to commit"
+          fi
+
+          git remote remove origin
+          git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
+          git push origin HEAD:main
+
+
+
+
+
+
+
+
+        
