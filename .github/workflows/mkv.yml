@@ -1,4 +1,4 @@
-name: MKV to single (720p video + Telugu Audio, single push)
+name: MKV to av (720p video + Telugu Audio, single push)
 
 on:
   workflow_dispatch:
@@ -19,24 +19,31 @@ jobs:
       - name: Install ffmpeg and jq
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg jq
+          sudo apt-get install -y ffmpeg jq wget
 
-      # 3️⃣ Convert MKV to HLS (all segments)
+      # 3️⃣ Download MKVs locally
+      - name: Download MKV files
+        run: |
+          mkdir -p source
+          wget -O source/video.mkv "https://cdn.telugudub.store/Pilla_Zamindar_(2011)_720p.mkv"
+          wget -O source/audio.mkv "https://cdn.telugudub.store/Pilla_Zamindar_(2011)_700MB.mkv"
+
+      # 4️⃣ Convert MKV to HLS (video + Telugu audio)
       - name: Convert MKV to HLS
         run: |
           set -e
 
-          VIDEO_SRC="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_720p.mkv"
-          AUDIO_SRC="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_700MB.mkv"
+          VIDEO_SRC="source/video.mkv"
+          AUDIO_SRC="source/audio.mkv"
           OUTPUT_FOLDER="pj"
           OUTPUT_PATH="$OUTPUT_FOLDER/playlist.m3u8"
           mkdir -p "$OUTPUT_FOLDER"
 
-          # Detect Telugu audio
+          # Detect Telugu audio (case-insensitive)
           AUDIO_INFO=$(ffprobe -v error -select_streams a \
-                       -show_entries stream=index:stream_tags=language:stream=codec_name,channels \
+                       -show_entries stream=index:stream_tags=language \
                        -of json "$AUDIO_SRC" | jq '.streams')
-          TELUGU_STREAM=$(echo "$AUDIO_INFO" | jq 'map(select(.tags.language=="tel"))')
+          TELUGU_STREAM=$(echo "$AUDIO_INFO" | jq 'map(select(.tags.language | ascii_downcase == "tel"))')
           if [ "$TELUGU_STREAM" == "[]" ] || [ -z "$TELUGU_STREAM" ]; then
               AUDIO_INDEX=$(echo "$AUDIO_INFO" | jq '.[0].index')
           else
@@ -45,14 +52,15 @@ jobs:
           AUDIO_INDEX=$(echo "$AUDIO_INDEX" | tr -d '"')
           AUDIO_INDEX=${AUDIO_INDEX:-0}
 
-          echo "🎬 Starting HLS conversion..."
+          echo "🎬 Using audio stream index: $AUDIO_INDEX"
+
           ffmpeg -y \
                  -i "$VIDEO_SRC" \
                  -i "$AUDIO_SRC" \
                  -map 0:v:0 \
-                 -map 1:a:$AUDIO_INDEX? \
+                 -map 1:a:$AUDIO_INDEX \
                  -c:v copy \
-                 -c:a aac -b:a 384k -ac 6 \
+                 -c:a aac -b:a 192k -ac 2 \
                  -f hls \
                  -hls_time 10 \
                  -hls_playlist_type vod \
@@ -61,7 +69,7 @@ jobs:
 
           echo "✅ HLS ready → $OUTPUT_PATH"
 
-      # 4️⃣ Commit & push all files in a single commit
+      # 5️⃣ Commit & push HLS
       - name: Commit & push HLS
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
@@ -75,7 +83,7 @@ jobs:
 
           # Add all files
           git add pj
-          git commit -m "Add HLS (single push) [skip ci]" || echo "No changes to commit"
+          git commit -m "Add HLS (720p + Telugu audio) [skip ci]" || echo "No changes to commit"
 
           git remote remove origin || true
           git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
