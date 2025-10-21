@@ -25,11 +25,11 @@ jobs:
       - name: Convert MKV to HLS (No Encode)
         run: |
           # Output folder
-          OUTPUT_FOLDER="happydays"
+          OUTPUT_FOLDER="shankar"
           mkdir -p "$OUTPUT_FOLDER"
 
           # Input MKV URL
-          INPUT_URL="https://cdn.telugudub.store/Happy%20Days%20(2007)_700MB.mkv"
+          INPUT_URL="https://cdn.telugudub.store/Shankar_Dada_Zindabad_(2007)_700MB.mkv"
 
           # Output playlist path
           OUTPUT_PATH="$OUTPUT_FOLDER/playlist.m3u8"
@@ -54,7 +54,7 @@ jobs:
           git config --global user.name "pothabattulavinod"
           git config --global user.email "vinodyadavpothabattula666@gmail.com"
 
-          git add happydays
+          git add shankar
 
           if ! git diff-index --quiet HEAD; then
             git commit -m "Add HLS copy output [skip ci]"
