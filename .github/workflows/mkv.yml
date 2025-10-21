@@ -1,4 +1,4 @@
-name: MKV to Av old HLS (Video + Telugu Audio, Smart Full Quality)
+name: MKV to HLS (Video + Telugu Audio, Full Quality)
 
 on:
   workflow_dispatch:
@@ -15,62 +15,48 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      # 2. Install ffmpeg and jq
-      - name: Install ffmpeg and jq
+      # 2. Install dependencies
+      - name: Install ffmpeg and wget
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg jq
+          sudo apt-get install -y ffmpeg wget
 
-      # 3. Combine 720p video + Telugu audio smartly
-      - name: Convert MKV to HLS (Full Quality)
+      # 3. Restore cached Telugu audio only
+      - name: Restore Telugu audio from cache
+        id: cache-audio
+        uses: actions/cache@v3
+        with:
+          path: telugu_audio.aac
+          key: telugu-audio-v2
+
+      # 4. Extract Telugu audio if not cached
+      - name: Extract Telugu audio if missing
+        if: steps.cache-audio.outputs.cache-hit != 'true'
         run: |
-          set -e
+          AUDIO_SOURCE_URL="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_700MB.mkv"
+          wget -O full_audio.mkv "$AUDIO_SOURCE_URL"
+          ffmpeg -i full_audio.mkv -map 0:a:m:language:tel -c:a aac telugu_audio.aac
+          rm full_audio.mkv
+          echo "✅ Telugu audio extracted and ready for cache"
 
+      # 5. Download 720p video
+      - name: Download 720p video
+        run: |
           VIDEO_URL="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_720p.mkv"
-          AUDIO_URL="https://cdn.telugudub.store/Pilla_Zamindar_(2011)_700MB.mkv"
+          wget -O video.mkv "$VIDEO_URL"
+
+      # 6. Convert to HLS
+      - name: Convert video + Telugu audio to HLS
+        run: |
           OUTPUT_FOLDER="pj"
           mkdir -p "$OUTPUT_FOLDER"
           OUTPUT_PATH="$OUTPUT_FOLDER/playlist.m3u8"
 
-          echo "🔍 Probing audio streams..."
-          AUDIO_INFO=$(ffprobe -v error -select_streams a \
-                      -show_entries stream=index:stream_tags=language:stream=codec_name,channels \
-                      -of json "$AUDIO_URL" | jq '.streams')
-
-          # Try to find Telugu audio
-          TELUGU_STREAM=$(echo "$AUDIO_INFO" | jq 'map(select(.tags.language=="tel"))')
-
-          if [ "$TELUGU_STREAM" == "[]" ] || [ -z "$TELUGU_STREAM" ]; then
-              echo "⚠️ No Telugu audio found — defaulting to first audio stream"
-              AUDIO_INDEX=0
-              AUDIO_CODEC=$(echo "$AUDIO_INFO" | jq -r '.[0].codec_name')
-              AUDIO_CHANNELS=$(echo "$AUDIO_INFO" | jq -r '.[0].channels')
-          else
-              AUDIO_INDEX=$(echo "$TELUGU_STREAM" | jq '.[0].index')
-              AUDIO_CODEC=$(echo "$TELUGU_STREAM" | jq -r '.[0].codec_name')
-              AUDIO_CHANNELS=$(echo "$TELUGU_STREAM" | jq -r '.[0].channels')
-              echo "✅ Selected Telugu audio stream: $AUDIO_INDEX ($AUDIO_CODEC, $AUDIO_CHANNELS channels)"
-          fi
-
-          AUDIO_INDEX=$(echo "$AUDIO_INDEX" | tr -d '"')
-
-          # Decide audio handling
-          if [ "$AUDIO_CODEC" == "aac" ]; then
-              AUDIO_PARAMS="-c:a copy"
-              echo "✅ Audio is AAC, copying full quality"
-          else
-              # Minimal re-encode for MP3 or other formats
-              # Keep bitrate high to preserve quality
-              AUDIO_PARAMS="-c:a aac -b:a 384k -ac $AUDIO_CHANNELS"
-              echo "⚠️ Audio is $AUDIO_CODEC, re-encoding to AAC high quality"
-          fi
-
-          echo "🎬 Starting HLS conversion..."
-          ffmpeg -i "$VIDEO_URL" -i "$AUDIO_URL" \
+          ffmpeg -i video.mkv -i telugu_audio.aac \
                  -map 0:v \
-                 -map 1:a:$AUDIO_INDEX? \
+                 -map 1:a \
                  -c:v copy \
-                 $AUDIO_PARAMS \
+                 -c:a copy \
                  -f hls \
                  -hls_time 10 \
                  -hls_playlist_type vod \
@@ -79,22 +65,18 @@ jobs:
 
           echo "✅ Full-quality HLS ready at $OUTPUT_PATH"
 
-      # 4. Commit and push HLS output
-      - name: Commit and push HLS output
+      # 7. Commit and push HLS output
+      - name: Commit and push HLS
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git config --global user.name "pothabattulavinod"
           git config --global user.email "vinodyadavpothabattula666@gmail.com"
-
           git add pj
-
           if ! git diff-index --quiet HEAD; then
             git commit -m "Add full-quality HLS with video + Telugu audio [skip ci]"
+            git remote remove origin || true
+            git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
+            git push origin HEAD:main
           else
             echo "No changes to commit"
-          fi
-
-          git remote remove origin || true
-          git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
-          git push origin HEAD:main
