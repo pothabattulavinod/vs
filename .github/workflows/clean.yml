@@ -1,3 +1,10 @@
+name: Free Up Disk Space
+
+# Event trigger (required)
+on:
+  workflow_dispatch:  # allows you to manually trigger this workflow
+  push:               # optional: trigger on push
+
 jobs:
   build:
     runs-on: ubuntu-latest
