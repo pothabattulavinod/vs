@@ -1,0 +1,9 @@
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /home/runner/actions-runner/_work/_temp/*
+          sudo rm -rf /home/runner/actions-runner/_work/_runner*
+          df -h
