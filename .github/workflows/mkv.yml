@@ -1,4 +1,4 @@
-name: Download Torrent MKV
+name: Download MKV from Torrent with Retry and Progress
 
 on:
   workflow_dispatch:
@@ -17,23 +17,48 @@ jobs:
       # 2️⃣ Download the torrent file
       - name: Download torrent file
         run: |
-          TORRENT_URL="https://www.1tamilmv.rest/applications/core/interface/file/attachment.php?id=143227&key=a16b00d6d61cb106707b865a61694a87"
+          TORRENT_URL="https://raw.githubusercontent.com/pothabattulavinod/vs/refs/heads/main/www.1TamilMV.cool%20-%20Mirai%20(2025)%20Telugu%20HQ%20HDRip%20-%20x264%20-%20AAC%20-%20400MB%20-%20ESub.mkv.torrent"
           TORRENT_FILE="movie.torrent"
           mkdir -p download
           echo "📥 Downloading torrent file..."
           aria2c -d download -o "$TORRENT_FILE" "$TORRENT_URL"
           echo "✅ Torrent file downloaded: download/$TORRENT_FILE"
 
-      # 3️⃣ Download MKV using the torrent
-      - name: Download MKV from torrent
+      # 3️⃣ Download MKV using the torrent with retry/resume and progress
+      - name: Download MKV from torrent (with retry and progress)
         run: |
           TORRENT_FILE="download/movie.torrent"
           DOWNLOAD_DIR="download/mkv"
           mkdir -p "$DOWNLOAD_DIR"
 
-          echo "🚀 Starting torrent download..."
-          # Fast download with multiple connections
-          aria2c --max-connection-per-server=16 --split=16 --min-split-size=1M -d "$DOWNLOAD_DIR" "$TORRENT_FILE"
+          MAX_RETRIES=3
+          RETRY_DELAY=30
 
-          INPUT_FILE=$(find "$DOWNLOAD_DIR" -type f -name "*.mkv" | head -n 1)
-          echo "✅ MKV download completed: $INPUT_FILE"
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "🚀 Attempt $i to download MKV..."
+            
+            # Resume download, show progress every 10s
+            aria2c --continue=true \
+                   --max-connection-per-server=16 \
+                   --split=16 \
+                   --min-split-size=1M \
+                   --console-log-level=info \
+                   --summary-interval=10 \
+                   -d "$DOWNLOAD_DIR" \
+                   "$TORRENT_FILE"
+
+            INPUT_FILE=$(find "$DOWNLOAD_DIR" -type f -name "*.mkv" | head -n 1)
+            if [ -f "$INPUT_FILE" ]; then
+              echo "✅ MKV download completed: $INPUT_FILE"
+              break
+            else
+              echo "⚠️ MKV not found, retrying in $RETRY_DELAY seconds..."
+              sleep $RETRY_DELAY
+            fi
+          done
+
+          # Final check
+          if [ ! -f "$INPUT_FILE" ]; then
+            echo "❌ MKV download failed after $MAX_RETRIES attempts."
+            exit 1
+          fi
