@@ -25,11 +25,11 @@ jobs:
       - name: Convert MKV to HLS (No Encode)
         run: |
           # Output folder
-          OUTPUT_FOLDER="sonof"
+          OUTPUT_FOLDER="Karthikeya"
           mkdir -p "$OUTPUT_FOLDER"
 
           # Input MKV URL
-          INPUT_URL="https://cdn.telugudub.store/Son_Of_Satyamurthy_(2015)_750MB_Telugu_Kannada.mkv"
+          INPUT_URL="https://cdn.telugudub.store/Karthikeya_(2014)_700MB.mkv"
 
           # Output playlist path
           OUTPUT_PATH="$OUTPUT_FOLDER/playlist.m3u8"
@@ -54,7 +54,7 @@ jobs:
           git config --global user.name "pothabattulavinod"
           git config --global user.email "vinodyadavpothabattula666@gmail.com"
 
-          git add sonof
+          git add Karthikeya
 
           if ! git diff-index --quiet HEAD; then
             git commit -m "Add HLS copy output [skip ci]"
