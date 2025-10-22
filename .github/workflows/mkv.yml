@@ -1,67 +1,92 @@
-name: MKV to HLS (No Encoding)
+name: Magnet to HLS (Video Copy + Telugu 5.1 Audio)
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
 
 jobs:
   convert:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
+      # 1️⃣ Checkout repository
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 0
 
-      # 2. Install ffmpeg
-      - name: Install ffmpeg
+      # 2️⃣ Install ffmpeg and aria2c
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg aria2
 
-      # 3. Convert MKV to HLS (copy video + audio)
-      - name: Convert MKV to HLS (No Encode)
+      # 3️⃣ Fast download MKV via magnet link
+      - name: Fast download MKV from magnet
         run: |
-          # Output folder
-          OUTPUT_FOLDER="Karthikeya"
+          MAGNET_LINK="magnet:?xt=urn:btih:9da8890ff6ea9ee709c24ec7a62ee8b6f19c067c&dn=www.5MovieRulz.estate%20-%20Mirai%20(2025)%20Telugu%20HQ%20HDRip%20-%20x264%20-%20AAC%20-%20250MB%20-%20ESub.mkv&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2fopen.demonii.com%3a1337%2fannounce&tr=udp%3a%2f%2fopen.tracker.cl%3a1337%2fannounce&tr=udp%3a%2f%2fopen.stealth.si%3a80%2fannounce&tr=udp%3a%2f%2ftracker.torrent.eu.org%3a451%2fannounce&tr=udp%3a%2f%2ftracker.ololosh.space%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.dump.cl%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.bittor.pw%3a1337%2fannounce&tr=udp%3a%2f%2fopentracker.io%3a6969%2fannounce&tr=udp%3a%2f%2fisk.richardsw.club%3a6969%2fannounce&tr=udp%3a%2f%2fdiscord.heihachi.pw%3a6969%2fannounce&tr=http%3a%2f%2fwww.torrentsnipe.info%3a2701%2fannounce&tr=http%3a%2f%2ftracker810.xyz%3a11450%2fannounce&tr=http%3a%2f%2ftracker.vanitycore.co%3a6969%2fannounce&tr=http%3a%2f%2ftracker.sbsub.com%3a2710%2fannounce&tr=http%3a%2f%2ftracker.moxing.party%3a6969%2fannounce&tr=http%3a%2f%2ftracker.lintk.me%3a2710%2fannounce"
+          DOWNLOAD_DIR="download"
+          mkdir -p "$DOWNLOAD_DIR"
+
+          echo "🚀 Downloading from magnet link..."
+          aria2c -x 16 -s 16 -k 1M -d "$DOWNLOAD_DIR" "$MAGNET_LINK"
+
+          INPUT_FILE=$(find "$DOWNLOAD_DIR" -type f -name "*.mkv" | head -n 1)
+          echo "Downloaded file: $INPUT_FILE"
+
+      # 4️⃣ Convert MKV to HLS (Video Copy + Telugu 5.1 Audio)
+      - name: Convert MKV to HLS
+        run: |
+          set -e
+          OUTPUT_FOLDER="pokiri"
           mkdir -p "$OUTPUT_FOLDER"
-
-          # Input MKV URL
-          INPUT_URL="https://cdn.telugudub.store/Karthikeya_(2014)_700MB.mkv"
-
-          # Output playlist path
           OUTPUT_PATH="$OUTPUT_FOLDER/playlist.m3u8"
 
-          # FFmpeg command: copy streams (no encoding)
-          ffmpeg -i "$INPUT_URL" \
-                 -map 0:v -map 0:a \
-                 -c:v copy -c:a copy \
-                 -f hls \
-                 -hls_time 10 \
-                 -hls_playlist_type vod \
-                 -hls_segment_filename "$OUTPUT_FOLDER/segment%03d.ts" \
-                 "$OUTPUT_PATH"
+          echo "🎬 Searching for Telugu audio stream and converting to HLS..."
 
-          echo "✅ HLS (video + audio, no encoding) ready: $OUTPUT_PATH"
+          ffmpeg -y -i "$INPUT_FILE" \
+            -filter_complex "[0:a:m:language:tel]pan=5.1(aout)" \
+            -map 0:v:0 \
+            -map "[aout]" \
+            -c:v copy \
+            -c:a aac -b:a 384k -ac 6 \
+            -f hls \
+            -hls_time 10 \
+            -hls_playlist_type vod \
+            -hls_segment_filename "$OUTPUT_FOLDER/segment%03d.ts" \
+            "$OUTPUT_PATH" || \
+          {
+            echo "⚠️ Telugu stream not found, falling back to first audio stream..."
+            ffmpeg -y -i "$INPUT_FILE" \
+              -map 0:v:0 \
+              -map 0:a:0 \
+              -c:v copy \
+              -c:a aac -b:a 384k -ac 6 \
+              -f hls \
+              -hls_time 10 \
+              -hls_playlist_type vod \
+              -hls_segment_filename "$OUTPUT_FOLDER/segment%03d.ts" \
+              "$OUTPUT_PATH"
+          }
 
-      # 4. Commit and push the HLS folder
-      - name: Commit and push results
+          echo "✅ HLS conversion completed. Output: $OUTPUT_PATH"
+
+      # 5️⃣ Commit and push results
+      - name: Commit and push HLS output
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git config --global user.name "pothabattulavinod"
           git config --global user.email "vinodyadavpothabattula666@gmail.com"
 
-          git add Karthikeya
+          git add pokiri
 
           if ! git diff-index --quiet HEAD; then
-            git commit -m "Add HLS copy output [skip ci]"
+            git commit -m "Add HLS (video copy + Telugu 5.1 audio) [skip ci]"
           else
-            echo "No changes to commit"
+            echo "No new files to commit."
           fi
 
-          git remote remove origin
-          git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/vs.git
+          git remote remove origin || true
+          git remote add origin https://x-access-token:${GH_PAT}@github.com/pothabattulavinod/av.git
           git push origin HEAD:main
